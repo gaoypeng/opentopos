@@ -205,7 +205,10 @@ def test_export_glb_false_success_also_caught(tmp_path):
             )
 
     spec = get("export_glb")
-    with patch("topos.tools.export.glb.run_process", return_value=_FakeProc()):
+    with (
+        patch("topos.tools.export.glb.resolve_blender_binary", return_value="blender"),
+        patch("topos.tools.export.glb.run_process", return_value=_FakeProc()),
+    ):
         result = spec.func(
             workspace=str(tmp_path),
             script_relpath="src/build.py",

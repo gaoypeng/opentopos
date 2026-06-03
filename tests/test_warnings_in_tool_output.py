@@ -62,7 +62,10 @@ def test_export_glb_surfaces_warnings_as_dedicated_field(tmp_path: Path):
     fake_proc = _FakeProc(stdout=stdout)
 
     spec = get("export_glb")
-    with patch("topos.tools.export.glb.run_process", return_value=fake_proc):
+    with (
+        patch("topos.tools.export.glb.resolve_blender_binary", return_value="blender"),
+        patch("topos.tools.export.glb.run_process", return_value=fake_proc),
+    ):
         result = spec.func(
             workspace=str(tmp_path),
             script_relpath="src/build.py",
@@ -154,6 +157,9 @@ def test_no_warnings_gives_empty_list_not_missing(tmp_path: Path):
     fake_proc = _FakeProc(stdout="INFO: gltf done\n")
 
     spec = get("export_glb")
-    with patch("topos.tools.export.glb.run_process", return_value=fake_proc):
+    with (
+        patch("topos.tools.export.glb.resolve_blender_binary", return_value="blender"),
+        patch("topos.tools.export.glb.run_process", return_value=fake_proc),
+    ):
         result = spec.func(workspace=str(tmp_path), script_relpath="src/build.py")
     assert result["warnings"] == []
