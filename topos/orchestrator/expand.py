@@ -62,6 +62,19 @@ def _skills_for_part(part_name: str) -> list[str]:
     return skills
 
 
+def _part_timeout_s(part_name: str) -> int:
+    """Wall-clock budget for a part agent. Mechanical/drivetrain parts (crankset,
+    wheel, derailleur, …) are multi-primitive assemblies that legitimately take
+    longer than the furniture-calibrated flat 900s — bike part agents timed out
+    at 900s, failing the whole run. Give those more headroom. This only RAISES
+    the ceiling; the idle-watchdog still kills genuinely-hung agents, so a higher
+    wall-clock limit only helps the slow-but-progressing ones."""
+    lower = part_name.lower()
+    if any(kw in lower for kw in _MECHANICAL_KEYWORDS):
+        return 1500
+    return 900
+
+
 def _find_reference_images(workspace_root: Path, part_name: str, design_part: dict) -> list[str]:
     """Collect reference images for a part from two sources:
 
@@ -252,7 +265,7 @@ def _expand_articulated_parts(
             ],
             skills=_skills_for_part(name),
             images=part_images,
-            timeout_s=900,
+            timeout_s=_part_timeout_s(name),
         ))
 
         tasks.append(ToolTask(

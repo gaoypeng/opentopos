@@ -25,6 +25,7 @@ INPUT_SCHEMA: dict = {
         "images": {"type": "array", "items": {"type": "string"}, "description": "Explicit list, takes precedence over image_pattern"},
         "metadata": {"type": "object"},
         "compare_to_reference": {"type": "boolean", "description": "If true and the workspace has reference image(s) under prompts/references/all_*, pass them to the critic as a comparison target (assembly-level judge only)."},
+        "timeout_s": {"type": "integer", "description": "Critic wall-clock budget. If omitted, auto-scaled by image count (floor 300s) so an 8-view assembly judge gets ~600s while a 1-2 view part judge stays 300s."},
     },
     "required": ["workspace", "rubric"],
 }
@@ -83,6 +84,7 @@ def judge(
     images: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     compare_to_reference: bool = False,
+    timeout_s: int | None = None,
 ) -> dict[str, Any]:
     ws = Path(workspace).resolve()
     if not ws.is_dir():
@@ -105,7 +107,14 @@ def judge(
         )
 
     rubric_obj = load_rubric(rubric)
-    critic = make_critic(rubric_obj)
+    # Auto-scale the critic's wall-clock budget by image count (floor 300s) when
+    # the caller didn't pin one: an 8-view assembly judge running a CLI critic
+    # (claude_vision) needs more than the flat 300s — a turbofan assembly judge
+    # timed out at 300.2s and hard-failed a complete deliverable. A 1-2 view
+    # per-part judge stays at the 300s floor.
+    if timeout_s is None:
+        timeout_s = max(300, 120 + 60 * len(img_paths))
+    critic = make_critic(rubric_obj, config={"timeout_s": int(timeout_s)})
     # Inject workspace_path so CLI critics (claude_vision, codex_cli, gemini_cli)
     # can run INSIDE the project workspace and Read src/ files for grounding.
     # API-only critics (openai_vision, gemini_vision) ignore this field.
