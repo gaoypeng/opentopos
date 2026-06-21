@@ -306,18 +306,32 @@ class ClaudeCLIBackend:
 
         if allowed_tools is not None:
             cmd.extend(["--allowed-tools", ",".join(allowed_tools)])
+            # --allowed-tools only gates PERMISSION; the full builtin tool set's
+            # schemas still load into context and are re-read every turn. --tools
+            # restricts which builtin schemas load at all, so mirror allowed_tools
+            # to strip the ~26 unused builtin schemas (Task/Cron/Workflow/Monitor/
+            # NotebookEdit/ToolSearch/…) from every agent's cached prefix. Topos
+            # agents only ever use a small builtin subset (Read/Edit/Write/Glob/
+            # Bash/Web*); orchestrator capabilities run as ToolTasks, not as agent
+            # tool-calls, so they never appear in allowed_tools.
+            cmd.extend(["--tools", ",".join(allowed_tools)])
 
         if system_prompt_append:
             cmd.extend(["--append-system-prompt", system_prompt_append])
 
-        mcp_config_path: Path | None = None
-        if mcp_servers:
-            mcp_config_path = trajectory_dir / "mcp_config.json"
-            mcp_config_path.write_text(json.dumps(
-                {"mcpServers": {s.name: s.to_claude_dict() for s in mcp_servers}},
-                indent=2,
-            ), encoding="utf-8")
-            cmd.extend(["--mcp-config", str(mcp_config_path), "--strict-mcp-config"])
+        # Always pin MCP to ONLY topos-provided servers (empty by default) — pass
+        # --strict-mcp-config unconditionally so the CLI does NOT discover the
+        # user's ambient ~/.claude.json MCP config, which otherwise leaks
+        # Gmail/Drive/Calendar tool schemas + dead needs-auth handshakes into
+        # every headless agent's context, re-read every turn. (Previously this
+        # only fired when mcp_servers was non-empty, but the orchestrator always
+        # passes [], so ambient MCP always leaked in.)
+        mcp_config_path = trajectory_dir / "mcp_config.json"
+        mcp_config_path.write_text(json.dumps(
+            {"mcpServers": {s.name: s.to_claude_dict() for s in mcp_servers}},
+            indent=2,
+        ), encoding="utf-8")
+        cmd.extend(["--mcp-config", str(mcp_config_path), "--strict-mcp-config"])
 
         cmd.extend(self.extra_args)
 
