@@ -162,7 +162,7 @@ def generate_plan_articulated(project: str, prompt: str) -> dict:
             "kind": "tool",
             "tool": "judge",
             "args": {
-                "rubric": "articulated_object_v1",
+                "rubric": "articulated_object_v2",
                 "image_pattern": "artifacts/object_render/view_*.png",
                 # the prompt is the ground truth for "what should this be" —
                 # the judge turns it into a role_hint so scoring is grounded

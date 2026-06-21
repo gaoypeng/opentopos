@@ -1,0 +1,89 @@
+id: articulated_object_v2
+description: |
+  Rubric for a single articulated object (one or a few joints) evaluated on
+  multi-view static renders of the assembled rest pose. v2 over v1:
+  (1) adds an explicit identity/recognizability criterion (does it READ as the
+      requested object, matching the reference silhouette & proportions) — v1
+      rewarded distinct parts but never "does the whole look like the thing";
+  (2) turns part identification into an expected-parts CHECKLIST that names
+      missing/stub parts (so feedback is actionable for the fix loop);
+  (3) de-furniturises every prompt — criteria now give domain-specific
+      examples for furniture / character / vehicle / machine, not just drawers.
+judge_backend: claude_vision
+pass_threshold: 0.65
+criteria:
+  - id: identity_recognizability
+    weight: 0.25
+    min_floor: 0.45
+    prompt: >
+      Would a person shown these renders (without being told) recognise the
+      object as the thing that was requested? Judge the overall GESTALT against
+      the prompt and, if provided, the reference image: silhouette, body
+      proportions, and signature features (e.g. for Optimus Prime: blue
+      antenna/horned head, red truck-cab chest, broad shoulders; for a bicycle:
+      two equal large wheels in line, a diamond frame triangle, handlebars over
+      the front wheel). Reward a strong, correct overall read even if surface
+      detail is coarse. Penalise wrong proportions or a silhouette that reads as
+      the wrong object. This is about "is it the right thing", not "is it
+      detailed".
+
+  - id: completeness_checklist
+    weight: 0.20
+    prompt: >
+      First, from the prompt/reference, list the major parts this object
+      category MUST have, then check each against the renders. Examples:
+        - humanoid/character: head, torso, two arms EACH ending in a hand,
+          two legs each ending in a foot;
+        - bicycle: frame, two spoked wheels, fork, handlebars, seat/saddle,
+          crank/pedals;
+        - ferris wheel: wheel rim with spokes, support frame/base, cabins;
+        - furniture: body/carcass, each moving sub-part (drawer/door/lid),
+          each affordance (handle/knob).
+      Score by the fraction of required parts that are PRESENT AND well-formed
+      across at least 3 of the 8 views. A part that is missing, merged into the
+      body, or reduced to a stub (e.g. an arm with no forearm/hand) counts as
+      absent. In your feedback, NAME every missing or stub part explicitly.
+
+  - id: structure_plausibility
+    weight: 0.15
+    prompt: >
+      Is the assembled object structurally coherent and physically plausible
+      for its category? Parts should connect the way a real one would, with
+      sane relative proportions (no pin-head, no torso wider than tall on a
+      standing figure, no wheel larger than the frame). Penalise parts that
+      float, intersect unintentionally, or clearly cannot function.
+
+  - id: geometry_detail
+    weight: 0.20
+    min_floor: 0.45
+    prompt: >
+      Are part shapes more refined than naive primitives? Score by what is
+      visible, independent of category:
+        - 0.2-0.4: pure stack of axis-aligned boxes/spheres, no bevels/insets;
+        - 0.5-0.7: at least one real detail feature (bevelled/chamfered edges,
+          recessed panel, a shaped rather than boxy sub-part, visible wall
+          thickness, spokes on a wheel);
+        - 0.8+: multiple detail features at once; the form reads as a designed
+          object (cab-over chest with windows, a recognisable handle/hand,
+          rounded armour) rather than blocked-in primitives.
+
+  - id: fit_quality
+    weight: 0.10
+    prompt: >
+      Do connected parts fit tightly and naturally, with small construction
+      tolerances rather than finger-wide gaps or heavy interpenetration? A
+      loosely-assembled look (parts visibly floating apart, or sunk deep into
+      each other) lowers this score.
+
+  - id: visible_geometry
+    weight: 0.05
+    prompt: >
+      Is the object well-framed across the 8 views, with no clipping, severe
+      occlusion, off-screen geometry, or degenerate/inconsistent scale?
+
+  - id: no_obvious_errors
+    weight: 0.05
+    prompt: >
+      Are there render errors — missing-texture magenta, NaN polygons, severe
+      z-fighting/flickering, or geometry punching through other parts in a
+      clearly unintended way?

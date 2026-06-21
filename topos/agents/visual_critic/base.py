@@ -23,6 +23,11 @@ class Criterion:
     id: str
     prompt: str
     weight: float = 1.0
+    # Optional hard gate: if set, this criterion scoring below ``min_floor``
+    # blocks the whole object from passing regardless of the weighted total
+    # (so a weak-but-compensated dimension — e.g. geometry_detail or identity —
+    # can't be averaged away). None = no floor (weighted total only).
+    min_floor: float | None = None
 
 
 @dataclass

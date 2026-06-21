@@ -64,6 +64,27 @@ def materialise_score(
     passed_claim = bool(parsed.get("passed", overall >= rubric.pass_threshold))
     passed = overall >= rubric.pass_threshold and passed_claim
     fixes = list(parsed.get("suggested_fixes") or [])
+
+    # Per-criterion floors: a criterion may declare ``min_floor``; if the model
+    # scored it below that floor the object cannot pass regardless of the
+    # weighted total. This stops a box-stack from passing on framing while a
+    # load-bearing dimension (geometry_detail / identity) is failing — the
+    # exact compensation that let a flat, blocky object clear threshold before.
+    floor_violations: list[str] = []
+    for crit in rubric.criteria:
+        floor = getattr(crit, "min_floor", None)
+        if floor is None:
+            continue
+        cscore = (per_criterion.get(crit.id) or {}).get("score")
+        if cscore is not None and float(cscore) < float(floor):
+            passed = False
+            floor_violations.append(
+                f"{crit.id} scored {float(cscore):.2f} < required floor {float(floor):.2f}"
+            )
+    if floor_violations:
+        # Surface the gate first so the fix-loop targets the blocking dimension.
+        fixes = ["BLOCKING (below required floor): " + "; ".join(floor_violations)] + fixes
+
     return passed, overall, per_criterion, fixes
 
 
