@@ -12,6 +12,21 @@ If reference image(s) are provided in the workspace (`prompts/references/`), Rea
 {
   "robot_name": "<machine-readable slug>",
   "description": "<one-line natural language description>",
+  "object_class": "<static-shell | lattice-frame | articulated-mechanism | bladed-assembly>",
+  //   Pick the topology that best fits, so downstream build validation knows
+  //   whether part AABBs are expected to overlap:
+  //     static-shell        : furniture / boxy bodies — solid, non-overlapping
+  //                           parts (cabinet, table, appliance). AABB overlap of
+  //                           unrelated parts IS a real defect; keep it strict.
+  //     lattice-frame       : open thin/in-line structures (bicycle, chair frame,
+  //                           tower, truss) where tubes/wheels/forks legitimately
+  //                           have OVERLAPPING bounding boxes without their meshes
+  //                           touching — AABB collision is mostly false-positive.
+  //     articulated-mechanism: machines with arms/linkages/drivetrains (robot,
+  //                           crane, engine block) — moving parts pass near one
+  //                           another; partial AABB overlap is normal.
+  //     bladed-assembly     : radial/bladed forms (turbofan, propeller, turbine)
+  //                           where many parts share a hub axis and overlap AABBs.
   "parts": [
     {
       "name": "<PascalCase>",                       // matches bpy.data.objects key + URDF link name
