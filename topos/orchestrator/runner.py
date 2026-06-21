@@ -1066,15 +1066,14 @@ class Runner:
             parts.append("")
             parts.append(
                 "# Skills available for this task\n\n"
-                "**MANDATORY: Read each matching skill BEFORE writing any code.**\n\n"
-                "The skills below contain accumulated lessons from real run "
-                "failures — transform_apply traps, scale arithmetic, bbox "
-                "contract patterns, texture binding, joint origin math. "
-                "Agents that skip skills consistently produce geometry that "
-                "scores below 0.4 on the detail criterion. For every skill "
-                "whose `when to use` matches your task, **use the Read tool "
-                "on the listed path** and apply its patterns. Skip ONLY "
-                "skills whose `when to use` clearly does not apply."
+                "Read a skill's full content ONLY if its `when to use` clearly "
+                "matches THIS task — most tasks need at most one, many need none. "
+                "Skipping a skill whose `when to use` does not apply is correct, "
+                "not a failure; do not read a skill just because it is listed. "
+                "When one does match, use the Read tool on its path and apply its "
+                "patterns — they encode real-run lessons (transform_apply traps, "
+                "bbox-contract patterns, joint origin math, texture binding) that "
+                "prevent low-scoring geometry."
             )
             from ..skills import load_skill_md
             for skill_name in task.skills:
@@ -1090,7 +1089,7 @@ class Runner:
                 parts.append(f"    description: {description}")
                 if when_to_use:
                     parts.append(f"    when to use: {when_to_use}")
-                parts.append(f"    full content: **Read `{rel_path}` BEFORE writing code**")
+                parts.append(f"    full content: Read `{rel_path}` only if the `when to use` above matches this task")
         if task.images:
             existing = [
                 img for img in task.images
