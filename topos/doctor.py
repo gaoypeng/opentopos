@@ -166,16 +166,34 @@ def check_blender(effective_cfg: dict) -> CheckResult:
     )
 
 
-def check_anthropic_key() -> CheckResult:
+def check_anthropic_key(effective_cfg: dict) -> CheckResult:
+    """Whether ANTHROPIC_API_KEY availability matches the configured auth mode.
+
+    The key is required ONLY when ``backends.claude.auth == 'api_key'``. Under
+    the default ``subscription`` auth, both the coding agent AND the Claude
+    vision critic (``claude_vision``) drive the claude CLI, which authenticates
+    via the user's subscription login — no key needed. (Earlier this check
+    falsely claimed ClaudeVisionCritic would fail without the key; it won't —
+    that critic is a thin façade over the claude CLI, not the HTTP API.)
+    """
+    auth = ((effective_cfg.get("backends") or {}).get("claude") or {}).get("auth", "subscription")
     if os.environ.get("ANTHROPIC_API_KEY"):
         return CheckResult(
             "anthropic_api_key", "ok",
-            "ANTHROPIC_API_KEY is set (required for api_key auth and ClaudeVisionCritic)",
+            "ANTHROPIC_API_KEY is set (covers api_key auth and any HTTP-API tools)",
+        )
+    if auth == "api_key":
+        return CheckResult(
+            "anthropic_api_key", "fail",
+            "backends.claude.auth=api_key but ANTHROPIC_API_KEY is not set — the "
+            "claude coding agent and claude_vision critic will fail.",
+            hint=("Set the key, or switch to subscription auth: "
+                  "topos config set backends.claude.auth subscription"),
         )
     return CheckResult(
-        "anthropic_api_key", "warn",
-        "ANTHROPIC_API_KEY not set (subscription auth still works for coding agent; "
-        "ClaudeVisionCritic will fail until this is set)",
+        "anthropic_api_key", "ok",
+        f"ANTHROPIC_API_KEY not set — not required (backends.claude.auth={auth}). "
+        "The claude_vision critic judges via the same CLI/subscription path.",
     )
 
 
@@ -245,7 +263,7 @@ def run_all() -> list[CheckResult]:
         check_python(),
         check_claude_cli(),
         check_blender(effective),
-        check_anthropic_key(),
+        check_anthropic_key(effective),
         check_image_gen_key(effective),
         check_mcp_importable(),
         check_user_config(),
