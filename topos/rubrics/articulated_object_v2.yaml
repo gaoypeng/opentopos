@@ -84,6 +84,11 @@ criteria:
   - id: no_obvious_errors
     weight: 0.05
     prompt: >
-      Are there render errors — missing-texture magenta, NaN polygons, severe
-      z-fighting/flickering, or geometry punching through other parts in a
-      clearly unintended way?
+      Are there true RENDER/GEOMETRY defects — missing-texture magenta, NaN
+      polygons, severe z-fighting/flickering, or geometry punching through other
+      parts in a clearly unintended way? Score ONLY actual defects. A correct,
+      intentional surface material, marking, decal, logo or pattern is NOT an
+      error — e.g. the painted spiral on a jet-engine spinner, wood grain, a
+      brushed-metal grain, a brand mark. Do not penalise legitimate textures as
+      if they were photographic mistakes or stray images; only flag genuine
+      rendering corruption or unintended geometry.
