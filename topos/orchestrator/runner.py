@@ -1237,11 +1237,19 @@ class Runner:
         duration_s: float,
         cost_usd: float,
     ) -> IterationSnapshot:
-        # Snapshot uses the first judge in the result set (deterministic by
-        # insertion order). For the multi-judge pass/fail decision we use
-        # _latest_judge_passed which aggregates across all judges.
-        all_judges = fix_loop.all_judge_results(results)
-        judge = all_judges[0] if all_judges else None
+        # Snapshot reports the AUTHORITATIVE assembly (whole-object) judge, the
+        # single judge that grades the deliverable. NOT all_judges[0]: in a
+        # subgraph plan the per-part judges are inserted before the assembly
+        # judge, so all_judges[0] is a lenient per-part judge — recording its
+        # score made run_report history report a part score as the run verdict
+        # (masking fails as passes). Fall back to the first judge only when the
+        # assembly judge hasn't run (e.g. build failed before it). The run-level
+        # pass/fail decision uses _latest_judge_passed (all judges); this is the
+        # reported-numbers fix only.
+        judge = fix_loop.assembly_judge_result(results)
+        if judge is None:
+            all_judges = fix_loop.all_judge_results(results)
+            judge = all_judges[0] if all_judges else None
         passed = (judge.output.get("passed") if judge else None)
         score = (judge.output.get("overall_score") if judge else None)
         return IterationSnapshot(

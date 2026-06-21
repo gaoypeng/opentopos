@@ -29,6 +29,10 @@ def test_gemini_vision_implements_protocol():
 
 
 def test_gemini_vision_factory_dispatch(monkeypatch):
+    # Isolate from any user-config visual_critic.default override (the rubric's
+    # own judge_backend must drive dispatch here).
+    import topos.config as _cfg
+    monkeypatch.setattr(_cfg, "load_effective_config", lambda: {})
     monkeypatch.setenv("GEMINI_API_KEY", "fake")
     r = _rubric()
     c = make_critic(r)

@@ -194,7 +194,11 @@ def test_materialise_fails_when_below_threshold():
 # --- Factory registration --------------------------------------------------
 
 
-def test_make_critic_dispatches_to_gemini():
+def test_make_critic_dispatches_to_gemini(monkeypatch):
+    # Isolate from any user-config visual_critic.default override so this tests
+    # the rubric→critic dispatch path, not the global override.
+    import topos.config as _cfg
+    monkeypatch.setattr(_cfg, "load_effective_config", lambda: {})
     rubric = _make_rubric()
     # We avoid hitting the network; from_config should succeed with no api_key
     # (the RuntimeError is raised in evaluate(), not in construction).
