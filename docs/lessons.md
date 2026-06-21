@@ -101,3 +101,29 @@ First full pipeline run with the new template+instances pattern (commits f90b683
 Known gap surfaced by this run: joints.yaml writer agent (and URDF export) is not yet instances-aware. 13_tool_export_urdf failed with: `link 'leg' references bpy object 'Leg' that the geometry script did not produce. produced: ['Leg_0', 'Leg_1', 'Leg_2', 'Leg_3', ...]`. Joints agent still emits singular `leg` link; build.py produces `Leg_0..3`. Phase 2 follow-up: update articulated/joints_writer.md to fan out per-instance links OR collapse fixed-joint instance siblings into a single mesh before URDF emit.
 
 Reference: outputs/stool_4leg_v1/{run_report.json, src/design.json, src/parts/leg.py, src/build.py}
+
+
+## 2026-06-21 — geometry_detail is RENDER-visibility-bound, not authoring-bound (the safe render fix A/B-regressed)
+
+Context: an autonomous self-improvement loop ran the harness with Opus 4.8 across 12 object categories (bike, cabinet, lamp, plant, truck, guitar, chair, drill, fan, propeller, robot, jet). 11/12 passed the v2 judge; `geometry_detail` was the systematically weakest criterion (avg ~0.69, the limiting criterion for 6/10 objects).
+
+What it is NOT: a part-authoring problem. Verified two ways. (1) A part-prompt "detail pass" directive (push ≥2 concrete features) was A/B-tested on truck/propeller/fan and was a **proven no-op** (truck 0.55→0.55, propeller 0.58→0.55, fan 0.60→0.62). (2) The part code already authors rich relief — propeller `blade.py` is a 136-line NACA airfoil; truck `cab.py` booleans 6 window recesses + bevels + door seams — yet still scores ~0.55-0.58. Part count has zero/inverse correlation with detail (robot has the MOST parts, 15, and the LOWEST score, 0.55).
+
+Root cause: the judge-facing EEVEE render (`tools/blender_render/wrapper.py`) doesn't make authored relief legible — no ambient occlusion, no `view_settings.view_transform` set (so default AgX desaturates + flattens contrast), deliberately-soft 3-point lighting, and `_force_base_color` flattens each part to one Base Color (navy windows in a navy cab). Authored surface relief casts no legible shadow and washes out; only silhouette-changing detail (spokes, apertures, fluting) survives. Strongest single quantitative predictor of geometry_detail is **intra-object color/material diversity** (3-color objects 0.55-0.62 vs 5-9 color objects 0.72-0.80) — which independently reconfirms the 2026-05-11 note that the design step needs a "make parts color-distinct enough for the judge to read" hint.
+
+BUT the obvious render fix did NOT pan out: a gated `_legibility_pass` (view_transform=Standard + eevee.use_gtao) was A/B'd by re-rendering+re-judging losers AND high-scorers. It did not lift losers above noise (truck +0.03, propeller +0.00) and it REGRESSED organic high-scorers (plant geometry_detail 0.78→0.72, overall 0.851→0.838) — AgX was actually tone-mapping broad-leaf/organic objects well. Reverted. Lesson: don't flip the global view transform blind; the real lever is per-feature material/color contrast (don't let `_force_base_color` homogenize multi-material parts; bias design.json toward color-distinct sub-features), an aesthetic change worth an A/B + human review, not an autonomous flip. HONEST CEILING: detail genuinely exists in the meshes; realistic render-side gain is moderate (~+0.08-0.15 on render-bound losers); current high scorers are near the procedural ceiling.
+
+Reference: workflow wux06kh1c (4-trace investigation); A/B re-render+re-judge across truck/propeller/bike/plant; outputs/{truck,propeller,fan,robot}_verify/.
+
+
+## 2026-06-21 — what actually moved quality + tokens this loop (8 commits)
+
+Context: same autonomous loop. The high-leverage, verified wins (all on master, 6001064..47e3b83):
+- **Judge honesty** — `doctor` told users ClaudeVisionCritic needs ANTHROPIC_API_KEY; it doesn't (it drives the claude CLI on subscription). And `runner._snapshot` recorded `all_judges[0]` (a lenient per-part judge) as the run verdict instead of the assembly judge, so run_report history mislabeled fails as passes (bike logged 0.81 while its assembly judge scored 0.605 FAIL). Fixed (6001064, 39d51f2).
+- **Token/context (biggest surprise)** — every claude-CLI agent loaded all 31 builtin tool schemas + the user's ambient Gmail/Drive/Calendar MCP tools, ~7-9K tokens re-sent EVERY turn, because `--allowed-tools` only gates permission (doesn't strip schemas) and `--strict-mcp-config` only fired when mcp_servers was non-empty (always []). Passing `--tools` + always `--strict-mcp-config` dropped it to 2 tools, mcp [] (97c2770). Separately the "MANDATORY: read each skill" banner forced simple part agents to read all 4 hinted skills (~9.5K tokens re-sent every turn); softening to genuine opt-in cut per-part base context ~47% (36K→19K cache_creation) with NO detail regression — A/B'd on a cabinet (47e3b83).
+- **Generality** — v2 identity rubric + per-criterion floors (fa14cb1), object_class-aware advisory collision WARNs so lattice/mechanism objects stop chasing bogus AABB overlaps (95e09a2), and adaptive part-agent + image-scaled judge timeouts (aa0a72f) took the always-failing bike from FAIL to PASS 0.858 and lifted the harness to 11/12 categories.
+- **Judge fairness** — no_obvious_errors penalised correct intentional textures (a real engine-spinner spiral misread as "a photographic animal"); scoped to true render/geometry defects only (659c2e6).
+
+Negative results worth remembering (don't rebuild these): a bladed-assembly geometry skill is unneeded (fan/propeller pass fine); build agents don't self-render (builder.md already forbids it); part-prompt detail directives don't move geometry_detail.
+
+Reference: git log 6001064..47e3b83; memory/harness-improvement-loop.md
